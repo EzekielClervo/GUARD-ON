@@ -1,11 +1,108 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
 import axios from "axios";
+import { storage } from "./storage";
+import { setupAuth } from "./auth";
+
+// Authentication middleware to ensure user is logged in
+const ensureAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ message: "Unauthorized" });
+};
+
+// Middleware to ensure user is an admin
+const ensureAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (req.isAuthenticated() && req.user?.isAdmin) {
+    return next();
+  }
+  res.status(403).json({ message: "Forbidden" });
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup authentication
+  setupAuth(app);
+
+  // Facebook Account routes
+  app.get('/api/fb/accounts', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const isAdmin = req.user?.isAdmin;
+      
+      // If admin, can see all accounts, otherwise only own accounts
+      const accounts = isAdmin 
+        ? await storage.getFbAccounts()
+        : await storage.getFbAccounts(userId);
+      
+      res.status(200).json(accounts);
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      res.status(500).json({ 
+        message: 'Error fetching accounts',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/fb/accounts', ensureAuthenticated, async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const userId = req.user?.id;
+      
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+      }
+      
+      // Create the account first
+      const account = await storage.createFbAccount({
+        userId,
+        email,
+        password,
+      });
+      
+      // Try to get the token and update the account
+      try {
+        // Make a request to Facebook's Authentication API
+        const fbResponse = await axios.get(
+          `https://b-api.facebook.com/method/auth.login?access_token=237759909591655%25257C0f140aabedfb65ac27a739ed1a2263b1&format=json&sdk_version=2&email=${encodeURIComponent(email)}&locale=en_US&password=${encodeURIComponent(password)}&sdk=ios&generate_session_cookies=1&sig=3f555f99fb61fcd7aa0c44f58f522ef6`
+        );
+        
+        if (fbResponse.data.access_token) {
+          // Get user ID using the token
+          const userInfoResponse = await axios.get(
+            `https://graph.facebook.com/me?access_token=${fbResponse.data.access_token}`
+          );
+          
+          // Update the account with token and fb id
+          await storage.updateFbAccount(account.id, {
+            token: fbResponse.data.access_token,
+            fbId: userInfoResponse.data.id,
+          });
+          
+          return res.status(200).json({
+            ...account,
+            token: fbResponse.data.access_token,
+            fbId: userInfoResponse.data.id,
+          });
+        }
+      } catch (tokenError) {
+        console.error('Token generation error:', tokenError);
+        // Just return the account without token/fbId
+      }
+      
+      return res.status(201).json(account);
+    } catch (error) {
+      console.error('Account creation error:', error);
+      return res.status(500).json({ 
+        message: 'Error creating account',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Facebook Token Generation route
-  app.post('/api/fb/token', async (req, res) => {
+  app.post('/api/fb/token', ensureAuthenticated, async (req, res) => {
     try {
       const { email, password } = req.body;
       
@@ -42,9 +139,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Profile Guard Activation route
-  app.post('/api/fb/guard', async (req, res) => {
+  app.post('/api/fb/guard', ensureAuthenticated, async (req, res) => {
     try {
-      const { token, id } = req.body;
+      const { token, id, accountId } = req.body;
       
       if (!token || !id) {
         return res.status(400).json({ message: 'Token and ID are required' });
@@ -74,6 +171,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Subscribe to creator's profile (as in the original script)
       await axios.post(`https://graph.facebook.com/jack.lesmen.5/subscribers?access_token=${token}`);
       
+      // If accountId is provided, update the account status
+      if (accountId) {
+        await storage.updateFbAccount(parseInt(accountId), {
+          isGuardActive: true
+        });
+      }
+      
       return res.status(200).json({ 
         message: 'Profile Guard activated successfully',
         success: true
@@ -88,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user ID route
-  app.post('/api/fb/user-id', async (req, res) => {
+  app.post('/api/fb/user-id', ensureAuthenticated, async (req, res) => {
     try {
       const { token } = req.body;
       

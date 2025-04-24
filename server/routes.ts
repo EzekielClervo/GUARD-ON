@@ -56,7 +56,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create the account first
       const account = await storage.createFbAccount({
-        userId,
+        userId: userId!,
         email,
         password,
       });

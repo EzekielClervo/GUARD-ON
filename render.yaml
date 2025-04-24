@@ -21,7 +21,3 @@ services:
     name: guard-on-db
     plan: free
     env: docker
-    disk:
-      name: data
-      mountPath: /var/lib/postgresql/data
-      sizeGB: 10

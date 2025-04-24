@@ -45,6 +45,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin route to get all Facebook accounts
+  app.get('/api/fb/accounts/all', ensureAuthenticated, ensureAdmin, async (req, res) => {
+    try {
+      const accounts = await storage.getFbAccounts();
+      res.status(200).json(accounts);
+    } catch (error) {
+      console.error('Error fetching all accounts:', error);
+      res.status(500).json({ 
+        message: 'Error fetching all accounts',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.post('/api/fb/accounts', ensureAuthenticated, async (req, res) => {
     try {
       const { email, password } = req.body;

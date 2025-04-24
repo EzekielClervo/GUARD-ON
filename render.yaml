@@ -18,3 +18,4 @@ services:
 databases:
   - name: guard-db
     plan: free
+    ipAllowList: [] # allow all connections

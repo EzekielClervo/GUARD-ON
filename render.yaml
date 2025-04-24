@@ -8,18 +8,20 @@ services:
     startCommand: npm start
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: guard-on-db
+          property: connectionString
       - key: SESSION_SECRET
         generateValue: true
       - key: NODE_ENV
         value: production
 
-  # Optional PostgreSQL Database - enable this if you don't have an external database
-  # - type: pserv
-  #   name: guard-on-db
-  #   plan: free
-  #   env: docker
-  #   disk:
-  #     name: data
-  #     mountPath: /var/lib/postgresql/data
-  #     sizeGB: 10
+  # PostgreSQL Database
+  - type: pserv
+    name: guard-on-db
+    plan: free
+    env: docker
+    disk:
+      name: data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 10

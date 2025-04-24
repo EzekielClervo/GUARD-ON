@@ -10,3 +10,11 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: guard-db
+          property: connectionString
+
+databases:
+  - name: guard-db
+    plan: free

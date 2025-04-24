@@ -1,13 +1,14 @@
 import { users, fbAccounts, type User, type InsertUser, type FbAccount, type InsertFbAccount } from "@shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq } from "drizzle-orm";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import session from "express-session";
-import { pool } from "./db";
 import connectPg from "connect-pg-simple";
+import createMemoryStore from "memorystore";
 
 const PostgresSessionStore = connectPg(session);
+const MemoryStore = createMemoryStore(session);
 const scryptAsync = promisify(scrypt);
 
 export interface IStorage {

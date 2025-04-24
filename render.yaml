@@ -11,11 +11,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: guard-db
-          property: connectionString
-
-databases:
-  - name: guard-db
-    plan: free
-    ipAllowList: [] # allow all connections
+        sync: false # Let's set this manually in the Render dashboard
